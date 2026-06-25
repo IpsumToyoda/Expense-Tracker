@@ -49,7 +49,7 @@ def render_add_expense_form():
                         notes.strip() or None,
                     )
                     st.success("Expense saved.")
-                    st.experimental_rerun()
+                    st.rerun()
 
 
 def build_filters():
