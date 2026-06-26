@@ -126,11 +126,11 @@ def render_edit_expense_form(expense):
                 )
                 st.success("Expense updated.")
                 st.session_state.editing_id = None
-                st.experimental_rerun()
+                st.rerun()
 
     if st.button("Cancel edit", key="cancel_edit"):
         st.session_state.editing_id = None
-        st.experimental_rerun()
+        st.rerun()
 
 
 def render_expense_list(expenses):
@@ -150,11 +150,11 @@ def render_expense_list(expenses):
         with cols[0]:
             if st.button("Edit", key=f"edit_{expense['id']}"):
                 st.session_state.editing_id = expense["id"]
-                st.experimental_rerun()
+                st.rerun()
         with cols[1]:
             if st.button("Delete", key=f"delete_{expense['id']}"):
                 delete_expense(expense["id"])
-                st.experimental_rerun()
+                st.rerun()
 
         st.write("---")
 
