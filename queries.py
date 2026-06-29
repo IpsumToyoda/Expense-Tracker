@@ -5,13 +5,12 @@ from db import db_connection
 
 
 def add_expense(title, amount, category=None, expense_date=None, notes=None):
-    """Insert a new expense record into the database."""
     with db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
                 INSERT INTO expenses (title, amount, category, expense_date, notes)
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, COALESCE(%s, CURRENT_DATE), %s)
                 RETURNING id, title, amount, category, expense_date, notes, created_at;
                 """,
                 (title, amount, category, expense_date, notes),
@@ -136,10 +135,13 @@ def delete_expense(expense_id):
     with db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "DELETE FROM expenses WHERE id = %s;",
+                "DELETE FROM expenses WHERE id = %s RETURNING id;",
                 (expense_id,),
             )
+            deleted = cur.fetchone()
         conn.commit()
+    
+    return deleted
 
 
 def get_expense_by_id(expense_id):
@@ -154,7 +156,6 @@ def get_expense_by_id(expense_id):
 
 
 def update_expense(expense_id, title, amount, category=None, expense_date=None, notes=None):
-    """Update an existing expense record."""
     with db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -165,8 +166,14 @@ def update_expense(expense_id, title, amount, category=None, expense_date=None, 
                     category = %s,
                     expense_date = %s,
                     notes = %s
-                WHERE id = %s;
+                WHERE id = %s
+                RETURNING id, title, amount, category, expense_date, notes;
                 """,
                 (title, amount, category, expense_date, notes, expense_id),
             )
+
+            result = cur.fetchone()
+
         conn.commit()
+
+    return result

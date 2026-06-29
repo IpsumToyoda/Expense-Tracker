@@ -1,19 +1,44 @@
 import datetime
+import os
 
 import requests
-
 import streamlit as st
 
-from queries import (
-    add_expense,
-    delete_expense,
-    get_categories,
-    get_expense_by_id,
-    get_expense_total,
-    get_expenses,
-    update_expense,
-)
-from schema import create_tables
+
+DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
+
+
+def get_api_base_url():
+    try:
+        api_base_url = st.secrets.get("API_BASE_URL")
+    except Exception:
+        api_base_url = None
+
+    return (api_base_url or os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL)).rstrip("/")
+
+
+def api_request(method, path, **kwargs):
+    url = f"{get_api_base_url()}{path}"
+
+    try:
+        response = requests.request(method, url, timeout=10, **kwargs)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        st.error(f"API request failed: {error}")
+        st.stop()
+
+    if not response.content:
+        return None
+
+    return response.json()
+
+
+def compact_params(params):
+    return {
+        key: value.isoformat() if isinstance(value, datetime.date) else value
+        for key, value in params.items()
+        if value is not None
+    }
 
 
 def format_currency(value):
@@ -21,32 +46,48 @@ def format_currency(value):
     text = f"{value:.2f}"
     return text.rstrip("0").rstrip(".")
 
-def get_expenses_from_api(category=None):
-    params = {}
 
-    if category and category != "All":
-        params["category"] = category
+def get_categories_from_api():
+    return api_request("GET", "/categories")
 
-    response = requests.get(
-        "http://127.0.0.1:8000/expenses",
-        params=params
-    )
 
-    return response.json()
+def get_expenses_from_api(filters):
+    return api_request("GET", "/expenses", params=compact_params(filters))
 
-def add_expense_via_api(title, amount, category):
+
+def get_expense_total_from_api(filters):
+    result = api_request("GET", "/expenses/total", params=compact_params(filters))
+    return result["total"]
+
+
+def get_expense_by_id_from_api(expense_id):
+    return api_request("GET", f"/expenses/{expense_id}")
+
+
+def add_expense_via_api(title, amount, category, expense_date, notes):
     payload = {
         "title": title,
         "amount": amount,
-        "category": category
+        "category": category,
+        "expense_date": expense_date.isoformat(),
+        "notes": notes,
     }
+    return api_request("POST", "/expenses", json=payload)
 
-    response = requests.post(
-        "http://127.0.0.1:8000/expenses",
-        json=payload
-    )
 
-    return response.json()
+def update_expense_via_api(expense_id, title, amount, category, expense_date, notes):
+    payload = {
+        "title": title,
+        "amount": amount,
+        "category": category,
+        "expense_date": expense_date.isoformat(),
+        "notes": notes,
+    }
+    return api_request("PUT", f"/expenses/{expense_id}", json=payload)
+
+
+def delete_expense_via_api(expense_id):
+    return api_request("DELETE", f"/expenses/{expense_id}")
 
 
 def render_add_expense_form():
@@ -74,7 +115,7 @@ def render_add_expense_form():
                         title.strip(),
                         amount,
                         category.strip() or None,
-                        # expense_date,
+                        expense_date,
                         notes.strip() or None,
                     )
                     st.success("Expense saved.")
@@ -85,7 +126,7 @@ def build_filters():
     with st.sidebar.expander("Filters", expanded=True):
         category = st.selectbox(
             "Category",
-            options=["All"] + get_categories(),
+            options=["All"] + get_categories_from_api(),
             index=0,
         )
 
@@ -135,7 +176,10 @@ def render_edit_expense_form(expense):
             value=float(expense["amount"]),
         )
         edit_category = st.text_input("Category", value=expense["category"] or "")
-        edit_date = st.date_input("Date", value=expense["expense_date"])
+        edit_date = st.date_input(
+            "Date",
+            value=datetime.date.fromisoformat(expense["expense_date"]),
+        )
         edit_notes = st.text_area("Notes", value=expense["notes"] or "")
         update_submitted = st.form_submit_button("Update expense")
 
@@ -145,7 +189,7 @@ def render_edit_expense_form(expense):
             elif edit_amount <= 0:
                 st.error("Amount must be greater than zero.")
             else:
-                update_expense(
+                update_expense_via_api(
                     expense["id"],
                     edit_title.strip(),
                     edit_amount,
@@ -182,15 +226,13 @@ def render_expense_list(expenses):
                 st.rerun()
         with cols[1]:
             if st.button("Delete", key=f"delete_{expense['id']}"):
-                delete_expense(expense["id"])
+                delete_expense_via_api(expense["id"])
                 st.rerun()
 
         st.write("---")
 
 
 def main():
-    create_tables()
-
     st.set_page_config(page_title="Expense Tracker", page_icon="💰")
     st.title("Expense Tracker")
     st.markdown("Track your spending with categories, dates, and notes.")
@@ -200,12 +242,13 @@ def main():
     filters = build_filters()
     if filters["start_date"] and filters["end_date"] and filters["start_date"] > filters["end_date"]:
         st.error("Start date cannot be later than end date.")
+        st.stop()
 
-    expenses = get_expenses_from_api(filters["category"])
-    total = get_expense_total(**filters)
+    expenses = get_expenses_from_api(filters)
+    total = get_expense_total_from_api(filters)
 
     editing_id = st.session_state.get("editing_id")
-    editing_expense = get_expense_by_id(editing_id) if editing_id is not None else None
+    editing_expense = get_expense_by_id_from_api(editing_id) if editing_id is not None else None
 
     if editing_expense:
         render_edit_expense_form(editing_expense)
@@ -217,14 +260,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# DEV TOOLS - для теста #
-st.title("Expense Tracker")
-
-if st.button("Test backend"):
-    response = requests.get("http://127.0.0.1:8000/hello")
-    st.write(response.json())
-
-if st.button("Load expenses from API"):
-    expenses = get_expenses_from_api()
-    st.write(expenses)
