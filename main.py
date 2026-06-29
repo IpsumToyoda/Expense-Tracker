@@ -34,6 +34,20 @@ def get_expenses_from_api(category=None):
 
     return response.json()
 
+def add_expense_via_api(title, amount, category):
+    payload = {
+        "title": title,
+        "amount": amount,
+        "category": category
+    }
+
+    response = requests.post(
+        "http://127.0.0.1:8000/expenses",
+        json=payload
+    )
+
+    return response.json()
+
 
 def render_add_expense_form():
     with st.expander("Add a new expense"):
@@ -56,11 +70,11 @@ def render_add_expense_form():
                 elif amount <= 0:
                     st.error("Amount must be greater than zero.")
                 else:
-                    add_expense(
+                    add_expense_via_api(
                         title.strip(),
                         amount,
                         category.strip() or None,
-                        expense_date,
+                        # expense_date,
                         notes.strip() or None,
                     )
                     st.success("Expense saved.")

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 from queries import get_expenses, add_expense
-from pydantic import BaseModel
 
 class ExpenseCreate(BaseModel):
     title: str
