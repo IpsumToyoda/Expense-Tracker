@@ -1,7 +1,8 @@
 from fastapi import FastAPI
+from fastapi import HTTPException
 from pydantic import BaseModel
 
-from queries import get_expenses, add_expense
+from queries import get_expenses, add_expense, delete_expense, update_expense
 
 class ExpenseCreate(BaseModel):
     title: str
@@ -33,3 +34,24 @@ def create_expense(expense: ExpenseCreate):
         expense.amount,
         expense.category
     )
+
+@app.delete("/expenses/{expense_id}")
+def remove_expense(expense_id: int):
+    deleted = delete_expense(expense_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return {"status": "Expense deleted successfully", "id": expense_id}
+
+@app.put("/expenses/{expense_id}")
+def update_expense_endpoint(expense_id: int, expense: ExpenseCreate):
+    updated = update_expense(
+        expense_id,
+        expense.title,
+        expense.amount,
+        expense.category
+    )
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    return updated

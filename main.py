@@ -34,11 +34,12 @@ def get_expenses_from_api(category=None):
 
     return response.json()
 
-def add_expense_via_api(title, amount, category):
+def add_expense_via_api(title, amount, category, notes):
     payload = {
         "title": title,
         "amount": amount,
-        "category": category
+        "category": category,
+        "notes": notes
     }
 
     response = requests.post(
@@ -46,7 +47,11 @@ def add_expense_via_api(title, amount, category):
         json=payload
     )
 
-    return response.json()
+    print("STATUS:", response.status_code)
+    print("TEXT:", response.text)
+
+    return response.text
+
 
 
 def render_add_expense_form():
