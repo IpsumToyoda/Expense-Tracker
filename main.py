@@ -1,5 +1,7 @@
 import datetime
 
+import requests
+
 import streamlit as st
 
 from queries import (
@@ -18,6 +20,19 @@ def format_currency(value):
     value = float(value or 0)
     text = f"{value:.2f}"
     return text.rstrip("0").rstrip(".")
+
+def get_expenses_from_api(category=None):
+    params = {}
+
+    if category and category != "All":
+        params["category"] = category
+
+    response = requests.get(
+        "http://127.0.0.1:8000/expenses",
+        params=params
+    )
+
+    return response.json()
 
 
 def render_add_expense_form():
@@ -172,7 +187,7 @@ def main():
     if filters["start_date"] and filters["end_date"] and filters["start_date"] > filters["end_date"]:
         st.error("Start date cannot be later than end date.")
 
-    expenses = get_expenses(**filters)
+    expenses = get_expenses_from_api(filters["category"])
     total = get_expense_total(**filters)
 
     editing_id = st.session_state.get("editing_id")
@@ -188,3 +203,14 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# DEV TOOLS - для теста #
+st.title("Expense Tracker")
+
+if st.button("Test backend"):
+    response = requests.get("http://127.0.0.1:8000/hello")
+    st.write(response.json())
+
+if st.button("Load expenses from API"):
+    expenses = get_expenses_from_api()
+    st.write(expenses)
